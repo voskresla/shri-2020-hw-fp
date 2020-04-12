@@ -15,37 +15,75 @@
  * Ответ будет приходить в поле {result}
  */
 import Api from '../tools/api';
+import * as R from "ramda";
 
 const api = new Api();
 
-/**
- * Я – пример, удали меня
- */
-const wait = time => new Promise(resolve => {
-    setTimeout(resolve, time);
+const gt2lt10 = R.compose(
+	R.both(
+		R.gt(10),
+		R.lt(2)
+	),
+	R.length
+)
+
+// Number вернет NaN если это не число, но тут все сработает в false, поэтому отдельно проверять не будем.
+// Хотя, сомнений хватает. Но, слабоумие и отвага!
+const num0gte = R.compose(
+	R.lte(0),
+	Number
+)
+
+const isValid = R.allPass([
+	gt2lt10,
+	num0gte
+])
+
+const validate = R.either(isValid, () => { throw new Error('ValidationError') })
+const round = R.compose(Math.round, Number)
+const pow = R.partialRight(Math.pow,[2])
+
+const makeQuery = value => ({
+	number: value,
+	from: 10,
+	to: 2
 })
 
-const processSequence = ({value, writeLog, handleSuccess, handleError}) => {
-    /**
-     * Я – пример, удали меня
-     */
-    writeLog(value);
+const get1 = R.pipe(
+	round,
+	makeQuery,
+	api.get('https://api.tech/numbers/base')
+)
 
-    api.get('https://api.tech/numbers/base', {from: 2, to: 10, number: '01011010101'}).then(({result}) => {
-        writeLog(result);
-    });
+const get2 = R.pipe(
+	api.get('https://animals.tech')
+)
 
-    wait(2500).then(() => {
-        writeLog('SecondLog')
+const processSequence = async ({value, writeLog, handleSuccess, handleError}) => {
+	
+	writeLog(value);
 
-        return wait(1500);
-    }).then(() => {
-        writeLog('ThirdLog');
+	try {
+		validate(value)
+		
+		R.pipeWith(R.andThen, [
+			get1,
+			R.prop('result'),
+			R.tap(writeLog),
+			value => value.length,
+			R.tap(writeLog),
+			pow,
+			R.tap(writeLog),
+			value => value % 3,
+			R.tap(writeLog),
+			get2,
+			R.prop('result'),
+			handleSuccess
+		])(value)
 
-        return wait(400);
-    }).then(() => {
-        handleSuccess('Done');
-    });
+	} catch (e) {
+		handleError(e.message)
+	}
 }
 
 export default processSequence;
